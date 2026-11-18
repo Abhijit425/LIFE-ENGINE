@@ -4,7 +4,7 @@ import com.abhijit.lifeengine.render.Quality
 
 enum class CameraMode(val label: String, val available: Boolean = true) {
     ORBIT("Explore"), FREE("Free"), WILDLIFE("Wildlife"), AERIAL("Aerial"), CINEMATIC("Cinematic"),
-    FOLLOW("Follow animal", available = false) // arrives with animals in Phase 2
+    FOLLOW("Follow animal")
 }
 
 /** Simulation speeds. 1x = one simulated minute per real second (a full day in 24 minutes). */
@@ -45,6 +45,13 @@ class EngineState {
     @Volatile var cameraMode: CameraMode = CameraMode.ORBIT
     @Volatile var cameraSnapshot: FloatArray? = null   // restored from saves: tx, ty, tz, yaw, pitch, dist
     @Volatile var focusRequest: String? = null         // "waterfall", "lake", "river", "kopje", "waterhole"
+
+    // wildlife
+    @Volatile var followAnimalId: Int = -1
+    @Volatile var followSpeciesRequest: String? = null
+    @Volatile var followInfo: String = ""
+    @Volatile var followNote: String = ""
+    @Volatile var animalCounts: IntArray? = null
 
     // renderer -> UI
     @Volatile var loading = true

@@ -10,7 +10,7 @@ adb shell getprop ro.build.version.release > "$OUT/device.txt"
 adb shell wm size >> "$OUT/device.txt"
 adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1 | tee "$OUT/install.txt"
 adb logcat -c
-timeout 120 adb shell am start -W -n "$PKG/.MainActivity" 2>&1 | tee "$OUT/start.txt"
+timeout 120 adb shell am start -W -n "$PKG/.MainActivity" --es follow zebra 2>&1 | tee "$OUT/start.txt"
 
 shot() { timeout 60 adb exec-out screencap -p > "$OUT/$1.png" || echo "screencap $1 timed out"; }
 sleep 20; shot 01_after_20s

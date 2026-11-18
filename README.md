@@ -6,13 +6,13 @@ No accounts, no API keys, no network access needed at runtime.
 **Download:** the latest debug APK is attached to the [`debug-latest` release](../../releases/tag/debug-latest),
 rebuilt and smoke-tested on a tablet emulator by GitHub Actions on every push to `main`.
 
-## Status: Phase 1 of 7 complete
+## Status: Phases 1–2 of 7 complete
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Android app, 3D savanna world, rendering, cameras, time of day, UI shell, saves | **Done** |
-| 2 | Licensed rigged glTF animals + animation, follow camera | Next |
-| 3 | Animal AI + ecological simulation (populations, food web, biomass, water) | Planned |
+| 2 | CC0 rigged glTF animals, GPU skinning, animation, ambient behaviour, follow camera | **Done** |
+| 3 | Animal AI + ecological simulation (populations, food web, biomass, water) | Next |
 | 4 | Climate engine + weather effects (rain, lightning, seasons, drought) | Planned |
 | 5 | Evolution (heritable traits, mutation, selection, drift) | Planned |
 | 6 | Analytics dashboard + experiment lab | Planned |
@@ -35,7 +35,19 @@ rebuilt and smoke-tested on a tablet emulator by GitHub Actions on every push to
 - **UI**: landscape-first dark tablet UI, 8 sections, live telemetry charts, climate controls, saves.
 - **Time**: pause → 10,000×; lighting is held steady above 100× (no strobing day/night).
 
-Phase 1 vegetation and terrain are procedural meshes generated on-device. Licensed animal models arrive in Phase 2.
+### What Phase 2 adds
+- **glTF 2.0 / GLB loader** (pure Java): skins, node hierarchy, TRS animation clips; GPU skinning with joint matrices in a
+  float texture, instanced per species, in the main, shadow and reflection passes; clip cross-fading; distance-based pose rate.
+- **~170 animals in 8 species**: plains zebra, impala, Thomson's gazelle, African buffalo, spotted hyena, lion, leopard,
+  cheetah — with walk, gallop, eat/drink, idle and rest animations, terrain following and body pitch on slopes.
+- **Ambient behaviour**: herds and prides graze, wander, walk to the shoreline to drink, rest (predators by day, herbivores
+  at night) and occasionally gallop. Hunting, fleeing and needs come with Phase 3.
+- **Follow-animal camera**: double-tap an animal or use Wildlife → Follow.
+
+**Models are CC0 only** (Quaternius, *Ultimate Animated Animals*; see `app/src/main/assets/animals/ATTRIBUTION.md`).
+No CC0 animated lion, leopard, cheetah or hyena exists, so those use the closest rig (wolf/fox) with species coats and are
+labelled as stand-ins in the app; zebra uses the horse rig with a zebra coat. **Elephant, giraffe, ostrich and crocodile are
+not in the world yet** because no verified CC0 animated model was found.
 
 ## Build
 See [docs/BUILD.md](docs/BUILD.md). Architecture and model assumptions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

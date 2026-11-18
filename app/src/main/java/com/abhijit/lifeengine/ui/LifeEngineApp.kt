@@ -74,6 +74,7 @@ import com.abhijit.lifeengine.render.WorldView
 import com.abhijit.lifeengine.sim.CameraMode
 import com.abhijit.lifeengine.sim.EngineState
 import com.abhijit.lifeengine.sim.TIME_SPEEDS
+import com.abhijit.lifeengine.core.life.Species
 import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.random.Random
@@ -136,7 +137,7 @@ fun LifeEngineApp(state: EngineState, worldView: WorldView, saves: SaveManager) 
                                 Column(Modifier.verticalScroll(rememberScrollState())) {
                                     when (section) {
                                         Section.EXPLORER -> ExplorerPanel(state, tick)
-                                        Section.WILDLIFE -> WildlifePanel()
+                                        Section.WILDLIFE -> WildlifePanel(state, tick)
                                         Section.ECOSYSTEM -> EcosystemPanel(state, tick)
                                         Section.CLIMATE -> ClimatePanel(state)
                                         Section.EVOLUTION -> EvolutionPanel()
@@ -229,6 +230,14 @@ private fun TopHud(state: EngineState, tick: Int, modifier: Modifier) {
             )
             if (state.thermalThrottled) Text("Device is hot — quality reduced", color = Palette.Danger, fontSize = 11.sp)
         }
+        if (state.cameraMode == CameraMode.FOLLOW && state.followInfo.isNotEmpty()) {
+            Column(Modifier.padding(top = 8.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Glass).border(1.dp, Palette.Stroke, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.End) {
+                Text("Following", color = Palette.Amber, fontSize = 11.sp, letterSpacing = 1.sp)
+                Text(state.followInfo, color = Palette.Text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                if (state.followNote.isNotEmpty()) Text("Stand-in model · ${state.followNote}", color = Palette.Muted, fontSize = 11.sp)
+            }
+        }
         if (state.timeSpeed > 100f) Text("Time-lapse: lighting held steady above 100×", color = Palette.Teal, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
@@ -246,7 +255,7 @@ private fun BottomBar(state: EngineState, tick: Int, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CameraMode.entries.forEach { m ->
-                Chip(if (m.available) m.label else "${m.label} · Phase 2", state.cameraMode == m, enabled = m.available) { state.cameraMode = m }
+                Chip(m.label, state.cameraMode == m, enabled = m.available) { state.cameraMode = m }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -313,7 +322,8 @@ private fun ExplorerPanel(state: EngineState, tick: Int) {
     StatRow("Free / Wildlife", "drag look · 2-finger move · pinch")
     StatRow("Any orbit mode", "double-tap ground to focus")
     Spacer(Modifier.height(10.dp))
-    PhaseNote("Phase 1 delivers the world, rendering, cameras and time of day. Animals (Phase 2), AI and ecology (Phase 3), climate engine (Phase 4), evolution (Phase 5) and the lab (Phase 6) build on this.")
+    StatRow("Follow animal", "double-tap an animal, or Wildlife → Follow")
+    PhaseNote("Phases 1–2: world, rendering, cameras, time of day, animated wildlife. Next: AI and ecology (Phase 3), climate engine (Phase 4), evolution (Phase 5) and the lab (Phase 6).")
 }
 
 @Composable
@@ -325,38 +335,41 @@ private fun FlowChips(items: List<Pair<String, String>>, onClick: (String) -> Un
     }
 }
 
-private data class Species(val name: String, val latin: String, val diet: String, val role: String)
-
-private val SPECIES = listOf(
-    Species("Lion", "Panthera leo", "Carnivore", "Apex predator; prides hunt zebra, buffalo and gazelle"),
-    Species("African elephant", "Loxodonta africana", "Herbivore", "Ecosystem engineer; browses trees, opens woodland"),
-    Species("Plains zebra", "Equus quagga", "Herbivore", "Bulk grazer of tall, coarse grass"),
-    Species("Giraffe", "Giraffa camelopardalis", "Herbivore", "High browser of acacia canopies"),
-    Species("Impala (deer niche)", "Aepyceros melampus", "Herbivore", "Mixed feeder on woodland edges"),
-    Species("Thomson's gazelle", "Eudorcas thomsonii", "Herbivore", "Selective grazer of short green grass"),
-    Species("Spotted hyena", "Crocuta crocuta", "Carnivore", "Hunter and scavenger in clans"),
-    Species("Leopard", "Panthera pardus", "Carnivore", "Solitary ambush predator, caches kills in trees"),
-    Species("Cheetah", "Acinonyx jubatus", "Carnivore", "Sprint hunter of gazelles on open plains"),
-    Species("African buffalo", "Syncerus caffer", "Herbivore", "Herd grazer, needs daily water"),
-    Species("Common ostrich", "Struthio camelus", "Omnivore", "Grazes plants, takes insects and small prey"),
-    Species("Nile crocodile", "Crocodylus niloticus", "Carnivore", "Ambush predator at rivers and waterholes"),
-)
-
 @Composable
-private fun WildlifePanel() {
-    SectionTitle("Wildlife", "12 founding species")
-    PhaseNote("Phase 2 adds licensed, rigged glTF models with walk, run, eat, drink and rest animations. Phase 3 adds behaviour: foraging, drinking, herding, hunting, escape and reproduction.")
-    SPECIES.forEach { s ->
-        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(12.dp)).background(Palette.GlassLight).padding(12.dp)) {
+private fun WildlifePanel(state: EngineState, tick: Int) {
+    SectionTitle("Wildlife", "Live in this world")
+    val counts = state.animalCounts
+    if (counts == null) { Text("Animals are loading…", color = Palette.Muted); return }
+    Text("${counts.sum()} animals · tap Follow, or double-tap an animal in the view", color = Palette.Muted, fontSize = 12.5.sp)
+    Spacer(Modifier.height(6.dp))
+    Species.ALL.forEachIndexed { i, sp ->
+        Column(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(12.dp)).background(Palette.GlassLight).padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.name, color = Palette.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.width(8.dp))
-                Text(s.diet, color = if (s.diet == "Carnivore") Palette.Amber else Palette.Teal, fontSize = 12.sp)
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(sp.name, color = Palette.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (sp.diet == Species.CARNIVORE) "Carnivore" else if (sp.diet == Species.BROWSER) "Mixed feeder" else "Grazer",
+                            color = if (sp.diet == Species.CARNIVORE) Palette.Amber else Palette.Teal, fontSize = 12.sp)
+                    }
+                    Text("${sp.latin} · ${counts.getOrElse(i) { 0 }} in world", color = Palette.Muted, fontSize = 12.sp)
+                    if (sp.standIn != null) Text("Stand-in model: ${sp.standIn}", color = Palette.Muted, fontSize = 11.5.sp)
+                }
+                Chip("Follow", state.cameraMode == CameraMode.FOLLOW && state.followInfo.startsWith(sp.name)) {
+                    state.followSpeciesRequest = sp.id
+                }
             }
-            Text(s.latin, color = Palette.Muted, fontSize = 12.sp)
-            Text(s.role, color = Palette.Text, fontSize = 12.5.sp, modifier = Modifier.padding(top = 2.dp))
         }
     }
+    Spacer(Modifier.height(8.dp))
+    Text("Not in the world yet", color = Palette.Muted, fontSize = 13.sp)
+    Species.MISSING.forEach { m ->
+        Text("•  ${m[0]} (${m[1]})", color = Palette.Text, fontSize = 12.5.sp, modifier = Modifier.padding(start = 6.dp, top = 2.dp))
+    }
+    PhaseNote("No verified CC0 animated model exists for these yet. They will be added when one is found, or from a licensed pack you provide.")
+    PhaseNote("Phase 2: models, animation and ambient behaviour (grazing, walking, drinking at the shore, resting, galloping). Phase 3 adds hunting, fleeing, herding decisions, hunger, thirst and reproduction.")
+    Text("Animal models: Ultimate Animated Animals by Quaternius (CC0 1.0). Coats are applied in the shader.",
+        color = Palette.Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
 }
 
 @Composable

@@ -90,6 +90,9 @@ class Renderer:
         self.p_sky_r = P('sky.vert', 'sky.frag', ('REFLECTION',))
         self.p_water = P('water.vert', 'water.frag', sd)
         self.p_fall = P('fall.vert', 'fall.frag')
+        self.p_anim = P('animal.vert', 'animal.frag', sd)
+        self.p_anim_d = P('animal.vert', 'animal.frag', ('DEPTH_ONLY',))
+        self.load_animals()
 
         # textures
         def tex(data, size, comps, dtype='f1', repeat=True, mip=True):
@@ -225,7 +228,7 @@ class Renderer:
         view[0, 3] -= o[0] % texel; view[1, 3] -= o[1] % texel
         return ortho(-extent, extent, -extent, extent, 1.0, 3200.0) @ view
 
-    def render(self, eye, target, hour, out_png, fov=55.0, coverage=0.4, wind=0.35, t=40.0, wetness=0.0, reflect=True):
+    def render(self, eye, target, hour, out_png, fov=55.0, coverage=0.4, wind=0.35, t=40.0, wetness=0.0, reflect=True, lineup=None):
         ctx = self.ctx
         t0 = time.time()
         sun = sun_dir(hour)
@@ -260,6 +263,7 @@ class Renderer:
         lplanes = frustum_planes(lvp)
         self.draw_terrain('depth', lvp, center + np.array(light) * 1500, env, lplanes, min_step=2)
         self.draw_objects('depth', lvp, center, env, lplanes, lod_dist=extent * 0.7, max_dist=extent * 1.6)
+        self.draw_animals('depth', lvp, center, env, lplanes, lineup)
         ctx.polygon_offset = (0.0, 0.0)
 
         t_lut.use(0); self.t_noise.use(1); self.t_shadow.use(2); self.t_water.use(3)
@@ -292,6 +296,7 @@ class Renderer:
         self.draw_terrain('main', vp, eye, env, planes)
         self.ring_vao.render(moderngl.TRIANGLES)
         self.draw_objects('main', vp, eye, env, planes)
+        self.draw_animals('main', vp, eye, env, planes, lineup)
         # grass
         self.common(self.p_grass, vp, eye, env)
         for layer in grass_layers(self.q):
@@ -343,6 +348,46 @@ class Renderer:
                 vao.render(moderngl.TRIANGLES, instances=B * B)
                 n += 1
         return n
+
+    def load_animals(self):
+        ctx = self.ctx
+        self.animals = []
+        path = os.path.join(OUT, 'animals.json')
+        if not os.path.exists(path):
+            return
+        meta = json.load(open(path))
+        J = meta['maxJoints']
+        for si, sp in enumerate(meta['species']):
+            v = f32('an_%d_v' % si); idx = i32('an_%d_i' % si)
+            inst = f32('an_%d_inst' % si).reshape(-1, 8); bones = f32('an_%d_bones' % si)
+            vb = ctx.buffer(v.tobytes()); ib = ctx.buffer(idx.tobytes())
+            self.animals.append(dict(sp=sp, vb=vb, ib=ib, n=len(idx), inst=inst, bones=bones.reshape(-1, J * 16), J=J))
+
+    def draw_animals(self, which, vp, eye, env, planes, lineup=None):
+        prog = self.p_anim if which == 'main' else self.p_anim_d
+        self.common(prog, vp, eye, env)
+        self.set(prog, 'uBones', 8)
+        for k, a in enumerate(self.animals):
+            inst = a['inst'].copy(); bones = a['bones']
+            if lineup is not None:
+                # one of each species in a row, facing the camera-right direction
+                x0, z0, yaw = lineup
+                inst = inst[:1].copy()
+                inst[0, 0] = x0 + (k - len(self.animals) / 2) * 3.4; inst[0, 2] = z0
+                inst[0, 1] = self.height_at(inst[0, 0], inst[0, 2]); inst[0, 3] = yaw; inst[0, 6] = 0
+                bones = bones[:1]
+            if len(inst) == 0:
+                continue
+            tex = self.ctx.texture((a['J'] * 4, len(bones)), 4, bones.astype('f4').tobytes(), dtype='f4')
+            tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+            tex.use(8)
+            sp = a['sp']
+            self.set(prog, 'uPattern', int(sp['pattern'])); self.set(prog, 'uPatternColor', tuple(sp['pc'])); self.set(prog, 'uPatternScale', 1.0)
+            ibuf = self.ctx.buffer(inst.astype('f4').tobytes())
+            vao = self.ctx.vertex_array(prog, [(a['vb'], '3f 3f 3f 4f 4f 1f', 'aPos', 'aNormal', 'aColor', 'aJoints', 'aWeights', 'aCoat'),
+                                               (ibuf, '4f 4f/i', 'iPosYaw', 'iParams')], a['ib'], 4, skip_errors=True)
+            vao.render(moderngl.TRIANGLES, vertices=a['n'], instances=len(inst))
+            vao.release(); ibuf.release(); tex.release()
 
     def height_at(self, x, z):
         gx = np.clip((x + HALF) / (SIZE / (RES - 1)), 0, RES - 1.001); gz = np.clip((z + HALF) / (SIZE / (RES - 1)), 0, RES - 1.001)

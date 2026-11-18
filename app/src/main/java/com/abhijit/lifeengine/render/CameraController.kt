@@ -1,6 +1,7 @@
 package com.abhijit.lifeengine.render
 
 import com.abhijit.lifeengine.core.World
+import com.abhijit.lifeengine.core.life.AnimalSystem
 import com.abhijit.lifeengine.sim.CameraMode
 import com.abhijit.lifeengine.sim.EngineState
 import kotlin.math.PI
@@ -42,6 +43,11 @@ class CameraController(private val state: EngineState) {
         private set
 
     private var lastMode = CameraMode.ORBIT
+    @Volatile var animals: AnimalSystem? = null
+    var animalPicker: ((Float, Float) -> Int)? = null
+    private var followDist = 14f
+    private var lastUserInput = 0f
+    private var clock = 0f
     private var world: World? = null
     val cinematic = CinematicDirector()
 
@@ -84,13 +90,50 @@ class CameraController(private val state: EngineState) {
         state.cameraSnapshot?.let { restore(it); state.cameraSnapshot = null }
         state.focusRequest?.let { handleFocus(it, w); state.focusRequest = null }
 
+        clock += dt
+        if (dX != 0f || dY != 0f || pX != 0f || pY != 0f || pin != 1f) lastUserInput = clock
+        // double-tap on an animal (in orbit-style modes) starts following it
+        if (tX >= 0 && invViewProj != null && (state.cameraMode == CameraMode.ORBIT || state.cameraMode == CameraMode.FOLLOW || state.cameraMode == CameraMode.AERIAL)) {
+            val hit = pick(tX, tY, invViewProj, viewW, viewH, w)
+            val id = if (hit != null) animalPicker?.invoke(hit[0], hit[2]) ?: -1 else -1
+            if (id >= 0) { state.followAnimalId = id; state.cameraMode = CameraMode.FOLLOW; tX = -1f }
+        }
         val mode = state.cameraMode
         if (mode != lastMode) onModeChange(lastMode, mode)
         lastMode = mode
         val k = 1f - exp(-dt * 9f)
 
+        val followed = if (mode == CameraMode.FOLLOW) animals?.animals?.getOrNull(state.followAnimalId) else null
         when (mode) {
-            CameraMode.ORBIT, CameraMode.AERIAL, CameraMode.FOLLOW -> {
+            CameraMode.FOLLOW -> if (followed != null) {
+                yaw += dX * 0.0055f
+                pitch = (pitch + dY * 0.004f).coerceIn(0.05f, 1.3f)
+                followDist = (followDist / pin).coerceIn(followed.bodyLength * 1.5f, 160f)
+                // trail behind the animal while it moves, unless the user is steering
+                if (clock - lastUserInput > 3f && followed.speed > 0.3f) {
+                    val behind = kotlin.math.atan2(-cos(followed.yaw), -sin(followed.yaw))
+                    var diff = behind - yaw
+                    while (diff > PI) diff -= (2 * PI).toFloat()
+                    while (diff < -PI) diff += (2 * PI).toFloat()
+                    yaw += diff * min(1f, dt * 0.8f)
+                }
+                tx = followed.x; tz = followed.z; ty = followed.y + followed.bodyLength * 0.3f
+                dist = followDist
+                val kf = 1f - exp(-dt * 6f)
+                sTx += (tx - sTx) * kf; sTy += (ty - sTy) * kf; sTz += (tz - sTz) * kf
+                sYaw += (yaw - sYaw) * kf; sPitch += (pitch - sPitch) * kf; sDist += (dist - sDist) * kf
+                val cp = cos(sPitch)
+                eye[0] = sTx + sDist * cp * cos(sYaw); eye[1] = sTy + sDist * sin(sPitch); eye[2] = sTz + sDist * cp * sin(sYaw)
+                target[0] = sTx; target[1] = sTy; target[2] = sTz
+                val ground = groundAt(w, eye[0], eye[2]) + 1.2f
+                if (eye[1] < ground) eye[1] = ground
+                fov = 50f
+            } else {
+                // nothing selected: follow the nearest animal to the current view target
+                val k = animalPicker?.invoke(sTx, sTz) ?: -1
+                if (k >= 0) state.followAnimalId = k else state.cameraMode = CameraMode.ORBIT
+            }
+            CameraMode.ORBIT, CameraMode.AERIAL -> {
                 yaw += dX * 0.0055f
                 pitch = (pitch + dY * 0.004f).coerceIn(if (mode == CameraMode.AERIAL) 0.5f else 0.04f, 1.45f)
                 dist = (dist / pin).coerceIn(if (mode == CameraMode.AERIAL) 700f else 6f, 3200f)
@@ -161,7 +204,8 @@ class CameraController(private val state: EngineState) {
                 }
             }
             CameraMode.AERIAL -> { dist = max(dist, 1100f); pitch = max(pitch, 0.75f) }
-            CameraMode.ORBIT -> if (from == CameraMode.AERIAL) { dist = min(dist, 450f); pitch = min(pitch, 0.5f) }
+            CameraMode.ORBIT -> if (from == CameraMode.AERIAL) { dist = min(dist, 450f); pitch = min(pitch, 0.5f) } else if (from == CameraMode.FOLLOW) { dist = max(sDist, 60f) }
+            CameraMode.FOLLOW -> { followDist = 14f; pitch = 0.3f }
             CameraMode.CINEMATIC -> cinematic.start(state)
             else -> {}
         }

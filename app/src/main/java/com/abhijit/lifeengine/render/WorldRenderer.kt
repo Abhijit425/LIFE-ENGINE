@@ -13,6 +13,9 @@ import com.abhijit.lifeengine.core.TerrainMesher
 import com.abhijit.lifeengine.core.TextureGen
 import com.abhijit.lifeengine.core.World
 import com.abhijit.lifeengine.core.WorldGen
+import com.abhijit.lifeengine.core.life.AnimalPoser
+import com.abhijit.lifeengine.core.life.AnimalSystem
+import com.abhijit.lifeengine.core.life.Species
 import com.abhijit.lifeengine.sim.EngineState
 import com.abhijit.lifeengine.sim.WorldStats
 import java.util.concurrent.Executors
@@ -47,6 +50,8 @@ private class WorldPackage(
     val fields: ByteArray,
     val heightHalf: ShortArray,
     val stats: WorldStats,
+    val animals: AnimalSystem?,
+    val poser: AnimalPoser?,
 )
 
 class WorldRenderer(private val context: Context, private val state: EngineState, val camera: CameraController) : GLSurfaceView.Renderer {
@@ -76,6 +81,10 @@ class WorldRenderer(private val context: Context, private val state: EngineState
     private lateinit var pSkyRefl: ShaderProgram
     private lateinit var pWater: ShaderProgram
     private lateinit var pFall: ShaderProgram
+    private lateinit var pAnim: ShaderProgram
+    private lateinit var pAnimDepth: ShaderProgram
+    private lateinit var pAnimRefl: ShaderProgram
+    private var animalLayer: AnimalLayer? = null
     private var programsWithShadows = false
 
     // GPU resources
@@ -203,6 +212,17 @@ class WorldRenderer(private val context: Context, private val state: EngineState
                         }
                     }
                 }
+                state.loadingText = "Bringing in the wildlife"
+                state.loadingProgress = 0.84f
+                var animals: AnimalSystem? = null
+                var poser: AnimalPoser? = null
+                try {
+                    poser = AnimalPoser { name -> context.assets.open("animals/$name.glb").use { it.readBytes() } }
+                    animals = AnimalSystem(w, seed, poser.modelLengths(), state.quality.vegetationKeep)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "animals failed to load", t)
+                    state.errorText = "Animals could not be loaded: ${t.message}"
+                }
                 state.loadingText = "Painting textures"
                 state.loadingProgress = 0.88f
                 val pkg = WorldPackage(
@@ -211,6 +231,7 @@ class WorldRenderer(private val context: Context, private val state: EngineState
                     TextureGen.noiseRGBA(256, 11), TextureGen.waterNormal(256, 12), TextureGen.leafAtlas(512, 13),
                     TextureGen.worldFields(w), TextureGen.heightHalf(w),
                     computeStats(w, SystemClock.elapsedRealtime() - t0),
+                    animals, poser,
                 )
                 state.loadingText = "Uploading to GPU"
                 state.loadingProgress = 0.95f
@@ -260,7 +281,10 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         pSkyRefl = ShaderProgram(assets, "sky.vert", "sky.frag", listOf("REFLECTION"))
         pWater = ShaderProgram(assets, "water.vert", "water.frag", sd)
         pFall = ShaderProgram(assets, "fall.vert", "fall.frag", emptyList())
-        for (p in listOf(pTerrain!!, pTerrainDepth, pTerrainRefl, pObj, pObjDepth, pObjRefl, pGrass, pSky, pSkyRefl, pWater, pFall)) {
+        pAnim = ShaderProgram(assets, "animal.vert", "animal.frag", sd)
+        pAnimDepth = ShaderProgram(assets, "animal.vert", "animal.frag", listOf("DEPTH_ONLY"))
+        pAnimRefl = ShaderProgram(assets, "animal.vert", "animal.frag", listOf("REFLECTION"))
+        for (p in listOf(pTerrain!!, pTerrainDepth, pTerrainRefl, pObj, pObjDepth, pObjRefl, pGrass, pSky, pSkyRefl, pWater, pFall, pAnim, pAnimDepth, pAnimRefl)) {
             p.use()
             p.i("uSkyLut", 0); p.i("uNoise", 1); p.i("uShadowMap", 2); p.i("uWaterNormal", 3)
             p.i("uHeight", 4); p.i("uFields", 5); p.i("uLeafAtlas", 6); p.i("uReflection", 7)
@@ -310,6 +334,15 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         texLeaf = tex(Gl.texture2D(512, 512, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, Gl.bytes(pkg.leaf), true, false, anisotropy))
         texFields = tex(Gl.texture2D(World.RES, World.RES, GLES30.GL_RGBA8, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, Gl.bytes(pkg.fields), false, false))
         texHeight = tex(Gl.texture2D(World.RES, World.RES, GLES30.GL_R16F, GLES30.GL_RED, GLES30.GL_HALF_FLOAT, Gl.shorts(pkg.heightHalf), false, false))
+        animalLayer = null
+        if (pkg.animals != null && pkg.poser != null) {
+            val layer = AnimalLayer(pkg.animals, pkg.poser)
+            layer.upload { kind, id -> when (kind) { 0 -> ownedVaos += id; 1 -> ownedBuffers += id; else -> ownedTextures += id } }
+            animalLayer = layer
+            camera.animals = pkg.animals
+            camera.animalPicker = { x, z -> layer.nearest(x, z, -1, 10f) }
+            state.animalCounts = IntArray(Species.ALL.size) { pkg.animals.count(it) }
+        }
         Gl.check("upload")
         world = pkg.world
         camera.attach(pkg.world)
@@ -346,6 +379,9 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         lastPackage = null
         terrainGpu.fill(null)
         models = emptyArray()
+        animalLayer = null
+        camera.animals = null
+        state.followAnimalId = -1
         uploaded = false
         world = null
     }
@@ -406,6 +442,12 @@ class WorldRenderer(private val context: Context, private val state: EngineState
 
         updateTime(dt)
         updateEnvironment(dt)
+        val layer = animalLayer
+        if (layer != null) {
+            // animals move in near-real time; above 4x the population models of Phase 3 take over
+            layer.system.update(dt * min(state.timeSpeed, 4f), state.hour)
+            handleFollowRequests(layer)
+        }
         camera.update(dt, invVp, width, height)
 
         // camera matrices
@@ -414,6 +456,8 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         Matrix.setLookAtM(view, 0, eye[0], eye[1], eye[2], tgt[0], tgt[1], tgt[2], 0f, 1f, 0f)
         Matrix.multiplyMM(vp, 0, proj, 0, view, 0)
         Matrix.invertM(invVp, 0, vp, 0)
+        val animalRange = q.objectMaxDist * 0.4f
+        if (layer != null) { frustum.set(vp); layer.animate(eye, frustum, animalRange) }
 
         GLES30.glEnable(GLES30.GL_DEPTH_TEST)
         GLES30.glDepthFunc(GLES30.GL_LESS)
@@ -436,6 +480,7 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         drawTerrain(pTerrain!!, vp, eye, frustum, q, 1f, if (q.fullResTerrain) 1 else 2)
         drawRing(pTerrain!!, vp, eye)
         drawObjects(pObj, vp, eye, frustum, q.objectLodDist, q.objectMaxDist, false)
+        if (layer != null) { pAnim.use(); setCommon(pAnim, vp, eye); drawCalls += layer.draw(pAnim, eye, frustum, animalRange); tris += layer.trianglesDrawn }
         drawGrass(eye, q)
         drawSky(pSky, vp, invVp, eye)
         // transparent
@@ -464,6 +509,23 @@ class WorldRenderer(private val context: Context, private val state: EngineState
             val spent = System.nanoTime() - now
             if (spent < budgetNs) SystemClock.sleep((budgetNs - spent) / 1_000_000L)
         }
+    }
+
+    /** UI asked to follow a species: pick the individual of that species nearest the current view target. */
+    private fun handleFollowRequests(layer: AnimalLayer) {
+        state.followSpeciesRequest?.let { id ->
+            state.followSpeciesRequest = null
+            val s = Species.index(id)
+            val k = layer.nearest(camera.target[0], camera.target[2], s)
+            if (k >= 0) { state.followAnimalId = k; state.cameraMode = com.abhijit.lifeengine.sim.CameraMode.FOLLOW }
+        }
+        val k = state.followAnimalId
+        if (k >= 0 && k < layer.system.animals.size) {
+            val a = layer.system.animals[k]
+            val sp = Species.ALL[a.species]
+            state.followInfo = String.format(java.util.Locale.US, "%s · %s · %.1f m/s", sp.name, a.activity, a.speed)
+            state.followNote = sp.standIn ?: ""
+        } else state.followInfo = ""
     }
 
     // ------------------------------------------------------------------ simulation clock + environment
@@ -621,6 +683,7 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         val lightEye = floatArrayOf(cx, cy, cz)
         drawTerrain(pTerrainDepth, lightVp, lightEye, frustum, q, 1f, 2)
         drawObjects(pObjDepth, lightVp, lightEye, frustum, extent * 0.6f, extent * 1.6f, true)
+        animalLayer?.let { pAnimDepth.use(); setCommon(pAnimDepth, lightVp, lightEye); drawCalls += it.draw(pAnimDepth, lightEye, frustum, extent * 1.3f) }
         GLES30.glDisable(GLES30.GL_POLYGON_OFFSET_FILL)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
         GLES30.glViewport(0, 0, width, height)
@@ -665,6 +728,7 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         drawTerrain(pTerrainRefl, reflVp, reye, frustum, q, 2f, 2)
         drawRing(pTerrainRefl, reflVp, reye)
         drawObjects(pObjRefl, reflVp, reye, frustum, 0f, 2000f, true)
+        animalLayer?.let { pAnimRefl.use(); pAnimRefl.f("uClipY", -0.3f); setCommon(pAnimRefl, reflVp, reye); drawCalls += it.draw(pAnimRefl, reye, frustum, 400f) }
         drawSky(pSkyRefl, reflVp, invReflVp, reye)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
         GLES30.glViewport(0, 0, width, height)

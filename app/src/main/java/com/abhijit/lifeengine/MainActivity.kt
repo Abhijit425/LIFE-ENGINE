@@ -34,6 +34,8 @@ class MainActivity : ComponentActivity() {
         // resume the autosave (same world seed, time and camera) if one exists
         saves.load(0, state)
         state.regenerateRequested = false
+        // test/automation hook: `am start ... --es follow zebra` opens the follow camera on that species
+        intent?.getStringExtra("follow")?.let { state.followSpeciesRequest = it }
 
         worldView = WorldView(this, state)
         setContent { LifeEngineApp(state, worldView, saves) }

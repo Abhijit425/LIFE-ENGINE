@@ -362,7 +362,7 @@ public final class ModelFactory {
             float a = rng.range(0, 6.283f), r = rng.range(0f, 0.28f);
             float bx = (float) Math.cos(a) * r, bz = (float) Math.sin(a) * r;
             float dir = rng.range(0, 6.283f), dx = (float) Math.cos(dir), dz = (float) Math.sin(dir);
-            float H = rng.range(0.55f, 1.15f), lean = rng.range(0.15f, 0.55f), w = rng.range(0.035f, 0.06f);
+            float H = rng.range(0.35f, 0.8f), lean = rng.range(0.12f, 0.4f), w = rng.range(0.03f, 0.05f);
             float px = -dz, pz = dx; // width direction
             int segs = 4;
             int prevA = -1, prevB = -1;
@@ -390,7 +390,7 @@ public final class ModelFactory {
             float a = rng.range(0, 6.283f), r = rng.range(0f, 0.7f);
             float bx = (float) Math.cos(a) * r, bz = (float) Math.sin(a) * r;
             float dir = rng.range(0, 6.283f), dx = (float) Math.cos(dir), dz = (float) Math.sin(dir);
-            float H = rng.range(0.7f, 1.2f), lean = rng.range(0.2f, 0.5f), w = rng.range(0.10f, 0.16f);
+            float H = rng.range(0.45f, 0.8f), lean = rng.range(0.15f, 0.4f), w = rng.range(0.09f, 0.14f);
             float px = -dz, pz = dx;
             int prevA = -1, prevB = -1;
             for (int s = 0; s <= 2; s++) {
