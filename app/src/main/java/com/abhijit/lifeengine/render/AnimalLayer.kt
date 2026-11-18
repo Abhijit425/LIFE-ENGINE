@@ -24,9 +24,9 @@ class AnimalLayer(val system: AnimalSystem, private val poser: AnimalPoser) {
     private val lastPosedFrame = IntArray(count) { -1000 }
     private var frame = 0
     private var boneTex = 0
-    private val vaos = IntArray(Species.ALL.length)
-    private val instBufs = IntArray(Species.ALL.length)
-    private val indexCounts = IntArray(Species.ALL.length)
+    private val vaos = IntArray(Species.ALL.size)
+    private val instBufs = IntArray(Species.ALL.size)
+    private val indexCounts = IntArray(Species.ALL.size)
     private val inst = FloatArray(max(1, count) * 8)
     private val instFb: FloatBuffer = ByteBuffer.allocateDirect(inst.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
     var trianglesDrawn = 0
