@@ -84,7 +84,7 @@ enum class Section(val label: String, val icon: ImageVector) {
     ECOSYSTEM("Ecosystem", Icons.Filled.Park),
     CLIMATE("Climate", Icons.Filled.WbSunny),
     EVOLUTION("Evolution", Icons.Filled.AccountTree),
-    EXPERIMENTS("Experiments", Icons.Filled.Science),
+    EXPERIMENTS("Lab", Icons.Filled.Science),
     ANALYTICS("Analytics", Icons.Filled.Insights),
     SETTINGS("Settings", Icons.Filled.Settings),
 }

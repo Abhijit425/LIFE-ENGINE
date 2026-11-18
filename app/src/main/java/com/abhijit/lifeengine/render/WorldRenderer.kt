@@ -376,7 +376,8 @@ class WorldRenderer(private val context: Context, private val state: EngineState
     // ------------------------------------------------------------------ frame
     override fun onDrawFrame(gl: GL10?) {
         val now = System.nanoTime()
-        val dt = if (lastFrameNs == 0L) 0.016f else ((now - lastFrameNs) / 1e9f).coerceIn(0.0005f, 0.1f)
+        val realDt = if (lastFrameNs == 0L) 0.016f else ((now - lastFrameNs) / 1e9f).coerceAtLeast(0.0005f)
+        val dt = realDt.coerceAtMost(0.1f)   // animation step; stats use the real frame time
         lastFrameNs = now
         time += dt
 
@@ -450,7 +451,7 @@ class WorldRenderer(private val context: Context, private val state: EngineState
         GLES30.glDisable(GLES30.GL_BLEND)
 
         // stats + frame cap
-        fpsAccum += dt; fpsFrames++
+        fpsAccum += realDt; fpsFrames++
         if (fpsAccum >= 0.5f) {
             state.fps = fpsFrames / fpsAccum
             state.frameMs = fpsAccum / fpsFrames * 1000f
