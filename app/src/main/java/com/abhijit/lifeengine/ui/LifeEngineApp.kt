@@ -131,12 +131,7 @@ fun LifeEngineApp(state: EngineState, worldView: WorldView, saves: SaveManager) 
                         TopHud(state, tick, Modifier.align(Alignment.TopEnd).padding(16.dp))
                         CinematicCaption(state, tick, Modifier.align(Alignment.TopCenter).padding(top = 22.dp))
                         BottomBar(state, tick, Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp, start = 12.dp, end = 12.dp))
-                        AnimatedVisibility(
-                            visible = panelOpen,
-                            enter = slideInHorizontally { it / 3 } + fadeIn(),
-                            exit = slideOutHorizontally { it / 3 } + fadeOut(),
-                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 70.dp, bottom = 110.dp),
-                        ) {
+                        SlidingPanel(panelOpen, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp, top = 70.dp, bottom = 110.dp)) {
                             GlassCard(Modifier.widthIn(max = 400.dp).fillMaxHeight()) {
                                 Column(Modifier.verticalScroll(rememberScrollState())) {
                                     when (section) {
@@ -167,6 +162,17 @@ fun LifeEngineApp(state: EngineState, worldView: WorldView, saves: SaveManager) 
             }
         }
     }
+}
+
+/** Declared outside any Row/Column so the scope-free AnimatedVisibility overload is used. */
+@Composable
+private fun SlidingPanel(visible: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = slideInHorizontally { it / 3 } + fadeIn(),
+        exit = slideOutHorizontally { it / 3 } + fadeOut(),
+    ) { content() }
 }
 
 // ------------------------------------------------------------------ chrome
