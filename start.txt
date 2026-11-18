@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.abhijit.lifeengine/.MainActivity (has extras) }
+Status: ok
+LaunchState: COLD
+Activity: com.abhijit.lifeengine/.MainActivity
+TotalTime: 3808
+WaitTime: 3848
+Complete

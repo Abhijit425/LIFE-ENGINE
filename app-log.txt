@@ -1,0 +1,11 @@
+11-18 09:41:08.611  2914  2974 I LifeEngine: upload took 894 ms
+11-18 09:41:28.029  5573  5573 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-18 09:41:28.050  5573  5573 I AndroidRuntime: Using default boot image
+11-18 09:41:28.050  5573  5573 I AndroidRuntime: Leaving lock profiling enabled
+11-18 09:41:29.464  5573  5573 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-18 09:41:30.390  5573  5573 D AndroidRuntime: Shutting down VM
+11-18 09:41:51.486  5954  5954 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-18 09:41:51.510  5954  5954 I AndroidRuntime: Using default boot image
+11-18 09:41:51.510  5954  5954 I AndroidRuntime: Leaving lock profiling enabled
+11-18 09:41:51.716  5954  5954 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-18 09:41:52.622  5954  5954 D AndroidRuntime: Shutting down VM

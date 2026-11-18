@@ -1,0 +1,50 @@
+Applications Memory Usage (in Kilobytes):
+Uptime: 187945 Realtime: 187945
+
+** MEMINFO in pid 2914 [com.abhijit.lifeengine] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    38957    38800      144       32    39828    48024    42508     1881
+  Dalvik Heap    61102    61068        0       82    62168    82055    57495    24560
+ Dalvik Other     4733     3604        0        2     6368                           
+        Stack      800      800        0        0      804                           
+       Ashmem        2        0        0        0        8                           
+    Other dev        8        0        8        0      216                           
+     .so mmap     2131      196      488       14    28824                           
+    .jar mmap     1273        0      332        0    21716                           
+    .apk mmap      484        0        0        0    23256                           
+    .dex mmap    52857    52856        0        0    52912                           
+    .oat mmap       54        0        0        0     2180                           
+    .art mmap     7653     7388        4       65    17384                           
+   Other mmap       49       36        0        0     1020                           
+      Unknown      359      352        0        4      632                           
+        TOTAL   170661   165100      976      199   170661   130079   100003    26441
+ 
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    68460                          79552
+         Native Heap:    38800                          39828
+                Code:    53888                         131216
+               Stack:      800                            804
+            Graphics:        0                              0
+       Private Other:     4128
+              System:     4585
+             Unknown:                                    5916
+ 
+           TOTAL PSS:   170661            TOTAL RSS:   257316       TOTAL SWAP PSS:      199
+ 
+ Objects
+               Views:        9         ViewRootImpl:        1
+         AppContexts:        5           Activities:        1
+              Assets:       12        AssetManagers:        0
+       Local Binders:       11        Proxy Binders:       32
+       Parcel memory:        4         Parcel count:       17
+    Death Recipients:        0      OpenSSL Sockets:        0
+            WebViews:        0
+ 
+ SQL
+         MEMORY_USED:        0
+  PAGECACHE_OVERFLOW:        0          MALLOC_SIZE:        0
+ 
