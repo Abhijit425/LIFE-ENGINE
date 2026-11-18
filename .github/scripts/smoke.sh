@@ -10,9 +10,9 @@ adb shell getprop ro.build.version.release > "$OUT/device.txt"
 adb shell wm size >> "$OUT/device.txt"
 adb install -r app/build/outputs/apk/debug/app-debug.apk 2>&1 | tee "$OUT/install.txt"
 adb logcat -c
-adb shell am start -W -n "$PKG/.MainActivity" 2>&1 | tee "$OUT/start.txt"
+timeout 120 adb shell am start -W -n "$PKG/.MainActivity" 2>&1 | tee "$OUT/start.txt"
 
-shot() { adb exec-out screencap -p > "$OUT/$1.png"; }
+shot() { timeout 60 adb exec-out screencap -p > "$OUT/$1.png" || echo "screencap $1 timed out"; }
 sleep 20; shot 01_after_20s
 sleep 40; shot 02_after_60s
 # rotate the camera, zoom out (two-finger pinch is not possible via input; use the overview chip region instead)
@@ -21,7 +21,7 @@ sleep 6; shot 03_after_swipe
 adb shell input swipe 1300 700 1300 500 900
 sleep 6; shot 04_after_tilt
 
-adb logcat -d > "$OUT/logcat.txt"
+timeout 60 adb logcat -d > "$OUT/logcat.txt"
 grep -E "LifeEngine|AndroidRuntime|FATAL|GL error|Compile failed|Link failed" "$OUT/logcat.txt" > "$OUT/app-log.txt" || true
 if adb shell pidof "$PKG" > "$OUT/pid.txt"; then
   echo "RUNNING" >> "$OUT/pid.txt"

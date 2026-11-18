@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -49,7 +53,9 @@ jobs:
 
       - name: Launch on tablet emulator and capture screenshots
         uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 25
         with:
+          emulator-boot-timeout: 900
           api-level: 30
           arch: x86_64
           target: google_apis
