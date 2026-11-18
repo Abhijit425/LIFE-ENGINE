@@ -1,0 +1,14 @@
+.gradle/
+build/
+/app/build/
+local.properties
+keystore.properties
+*.jks
+!keystore/debug.keystore
+.idea/
+*.iml
+.DS_Store
+/preview/out/
+/tools/out/
+__pycache__/
+/preview/shots/
